@@ -1,50 +1,109 @@
-name: CI/CD Pipeline - FastDelivery Perú
+name: CI/CD - FastDelivery Cloud Native
+
+# Pipeline conceptual: se dispara en cada push/PR a main.
+# Cubre las 5 fases pedidas en el Caso Práctico 9: Build, Test, Docker Build, Docker Push, Deployment.
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
+
+env:
+  REGISTRY: docker.io
+  DOCKER_NAMESPACE: fastdelivery-peru
 
 jobs:
-  build:
-    name: Build
+  # ---------------------------------------------------------
+  # 1. BUILD & TEST — se ejecuta en matriz para los 4 componentes
+  # ---------------------------------------------------------
+  build-and-test:
+    name: Build & Test (${{ matrix.service }})
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Instalar dependencias y compilar (placeholder)
-        run: echo "Aquí va el build de cada microservicio/frontend"
+    strategy:
+      matrix:
+        service:
+          - frontend
+          - api-gateway
+          - services/products-service
+          - services/inventory-service
+          - services/orders-service
 
-  test:
-    name: Test
-    needs: build
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: ${{ matrix.service }}/package-lock.json
+
+      - name: Instalar dependencias
+        working-directory: ${{ matrix.service }}
+        run: npm ci
+
+      - name: Ejecutar linter
+        working-directory: ${{ matrix.service }}
+        run: npm run lint --if-present
+
+      - name: Ejecutar pruebas
+        working-directory: ${{ matrix.service }}
+        run: npm test --if-present
+
+  # ---------------------------------------------------------
+  # 2. DOCKER BUILD & PUSH — solo en push a main, tras pasar los tests
+  # ---------------------------------------------------------
+  docker-build-push:
+    name: Docker Build & Push (${{ matrix.service }})
+    needs: build-and-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Ejecutar pruebas (placeholder)
-        run: echo "Aquí van los tests unitarios/integración"
+    strategy:
+      matrix:
+        include:
+          - service: frontend
+            image: fastdelivery-frontend
+          - service: api-gateway
+            image: fastdelivery-api-gateway
+          - service: services/products-service
+            image: fastdelivery-products-service
+          - service: services/inventory-service
+            image: fastdelivery-inventory-service
+          - service: services/orders-service
+            image: fastdelivery-orders-service
 
-  docker-build:
-    name: Docker Build
-    needs: test
-    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Construir imágenes Docker (placeholder)
-        run: echo "docker build -t products-service ./services/products-service"
+      - name: Checkout código
+        uses: actions/checkout@v4
 
-  docker-push:
-    name: Docker Push
-    needs: docker-build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Push a registry (placeholder)
-        run: echo "docker push tu-usuario/products-service:latest"
+      - name: Login en Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Build y push de la imagen
+        uses: docker/build-push-action@v5
+        with:
+          context: ./${{ matrix.service }}
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.DOCKER_NAMESPACE }}/${{ matrix.image }}:latest
+            ${{ env.REGISTRY }}/${{ env.DOCKER_NAMESPACE }}/${{ matrix.image }}:${{ github.sha }}
+
+  # ---------------------------------------------------------
+  # 3. DEPLOYMENT — paso conceptual (no se implementa Kubernetes real,
+  #    solo se documenta el paso de despliegue tal como pide el caso práctico)
+  # ---------------------------------------------------------
   deploy:
-    name: Deployment
-    needs: docker-push
+    name: Deployment (conceptual)
+    needs: docker-build-push
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy (placeholder / conceptual)
-        run: echo "kubectl apply -f k8s/"
+      - name: Simular despliegue a Kubernetes
+        run: |
+          echo "Aquí iría 'kubectl apply -f k8s/' contra el clúster de staging/producción."
+          echo "Diseño de despliegue documentado en /k8s y /docs/arquitectura.md"
