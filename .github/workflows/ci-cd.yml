@@ -1,0 +1,50 @@
+name: CI/CD Pipeline - FastDelivery Perú
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Instalar dependencias y compilar (placeholder)
+        run: echo "Aquí va el build de cada microservicio/frontend"
+
+  test:
+    name: Test
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ejecutar pruebas (placeholder)
+        run: echo "Aquí van los tests unitarios/integración"
+
+  docker-build:
+    name: Docker Build
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Construir imágenes Docker (placeholder)
+        run: echo "docker build -t products-service ./services/products-service"
+
+  docker-push:
+    name: Docker Push
+    needs: docker-build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Push a registry (placeholder)
+        run: echo "docker push tu-usuario/products-service:latest"
+
+  deploy:
+    name: Deployment
+    needs: docker-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy (placeholder / conceptual)
+        run: echo "kubectl apply -f k8s/"

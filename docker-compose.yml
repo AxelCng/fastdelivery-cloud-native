@@ -1,0 +1,65 @@
+version: "3.9"
+
+services:
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api-gateway
+
+  api-gateway:
+    build: ./api-gateway
+    ports:
+      - "8080:8080"
+    depends_on:
+      - products-service
+      - inventory-service
+      - orders-service
+
+  products-service:
+    build: ./services/products-service
+    ports:
+      - "3001:3001"
+    depends_on:
+      - products-db
+    environment:
+      - DB_HOST=products-db
+
+  products-db:
+    image: mongo:7
+    volumes:
+      - products_data:/data/db
+
+  inventory-service:
+    build: ./services/inventory-service
+    ports:
+      - "3002:3002"
+    depends_on:
+      - inventory-db
+    environment:
+      - DB_HOST=inventory-db
+
+  inventory-db:
+    image: mongo:7
+    volumes:
+      - inventory_data:/data/db
+
+  orders-service:
+    build: ./services/orders-service
+    ports:
+      - "3003:3003"
+    depends_on:
+      - orders-db
+    environment:
+      - DB_HOST=orders-db
+
+  orders-db:
+    image: mongo:7
+    volumes:
+      - orders_data:/data/db
+
+volumes:
+  products_data:
+  inventory_data:
+  orders_data:

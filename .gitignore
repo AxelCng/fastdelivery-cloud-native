@@ -1,0 +1,30 @@
+# Dependencias
+node_modules/
+**/node_modules/
+
+# Variables de entorno
+.env
+**/.env
+
+# Builds
+dist/
+build/
+target/
+**/target/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Sistema operativo / IDE
+.DS_Store
+.idea/
+.vscode/
+*.iml
+
+# Docker
+*.pid
+
+# Bases de datos locales
+*.sqlite
+*.db
