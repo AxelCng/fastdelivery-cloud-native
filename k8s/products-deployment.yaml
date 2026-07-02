@@ -1,0 +1,137 @@
+# ═══════════════════════════════════════════════════════════════════
+# Products Service — Deployment + Service + MongoDB
+# Microservicio de Catálogo de Productos (puerto 3001)
+# ═══════════════════════════════════════════════════════════════════
+
+# ─── MongoDB para Products ──────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: products-db
+  namespace: fastdelivery
+  labels:
+    app: products-db
+    tier: database
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: products-db
+  template:
+    metadata:
+      labels:
+        app: products-db
+        tier: database
+    spec:
+      containers:
+        - name: mongo
+          image: mongo:7
+          ports:
+            - containerPort: 27017
+              name: mongo
+          volumeMounts:
+            - name: products-data
+              mountPath: /data/db
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "300m"
+      volumes:
+        - name: products-data
+          emptyDir: {}
+          # En producción, usar PersistentVolumeClaim:
+          # persistentVolumeClaim:
+          #   claimName: products-db-pvc
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: products-db
+  namespace: fastdelivery
+  labels:
+    app: products-db
+spec:
+  selector:
+    app: products-db
+  ports:
+    - port: 27017
+      targetPort: 27017
+      protocol: TCP
+  type: ClusterIP
+
+---
+# ─── Products Service (API) ────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: products-service
+  namespace: fastdelivery
+  labels:
+    app: products-service
+    tier: backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: products-service
+  template:
+    metadata:
+      labels:
+        app: products-service
+        tier: backend
+    spec:
+      containers:
+        - name: products-service
+          image: fastdelivery-peru/products-service:latest
+          ports:
+            - containerPort: 3001
+              name: http
+          env:
+            - name: PORT
+              value: "3001"
+            - name: DB_HOST
+              value: "products-db"
+            - name: DB_PORT
+              value: "27017"
+            - name: DB_NAME
+              value: "products_db"
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3001
+            initialDelaySeconds: 15
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3001
+            initialDelaySeconds: 5
+            periodSeconds: 10
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: products-service
+  namespace: fastdelivery
+  labels:
+    app: products-service
+spec:
+  selector:
+    app: products-service
+  ports:
+    - port: 3001
+      targetPort: 3001
+      protocol: TCP
+  type: ClusterIP

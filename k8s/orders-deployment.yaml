@@ -1,0 +1,134 @@
+# ═══════════════════════════════════════════════════════════════════
+# Orders Service — Deployment + Service + MongoDB
+# Microservicio de Pedidos (puerto 3003)
+# ═══════════════════════════════════════════════════════════════════
+
+# ─── MongoDB para Orders ────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orders-db
+  namespace: fastdelivery
+  labels:
+    app: orders-db
+    tier: database
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: orders-db
+  template:
+    metadata:
+      labels:
+        app: orders-db
+        tier: database
+    spec:
+      containers:
+        - name: mongo
+          image: mongo:7
+          ports:
+            - containerPort: 27017
+              name: mongo
+          volumeMounts:
+            - name: orders-data
+              mountPath: /data/db
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "300m"
+      volumes:
+        - name: orders-data
+          emptyDir: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: orders-db
+  namespace: fastdelivery
+  labels:
+    app: orders-db
+spec:
+  selector:
+    app: orders-db
+  ports:
+    - port: 27017
+      targetPort: 27017
+      protocol: TCP
+  type: ClusterIP
+
+---
+# ─── Orders Service (API) ──────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orders-service
+  namespace: fastdelivery
+  labels:
+    app: orders-service
+    tier: backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: orders-service
+  template:
+    metadata:
+      labels:
+        app: orders-service
+        tier: backend
+    spec:
+      containers:
+        - name: orders-service
+          image: fastdelivery-peru/orders-service:latest
+          ports:
+            - containerPort: 3003
+              name: http
+          env:
+            - name: PORT
+              value: "3003"
+            - name: DB_HOST
+              value: "orders-db"
+            - name: DB_PORT
+              value: "27017"
+            - name: DB_NAME
+              value: "orders_db"
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3003
+            initialDelaySeconds: 15
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3003
+            initialDelaySeconds: 5
+            periodSeconds: 10
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: orders-service
+  namespace: fastdelivery
+  labels:
+    app: orders-service
+spec:
+  selector:
+    app: orders-service
+  ports:
+    - port: 3003
+      targetPort: 3003
+      protocol: TCP
+  type: ClusterIP

@@ -1,0 +1,10 @@
+# ─── Namespace para FastDelivery ─────────────────────────────────
+# Aísla todos los recursos del proyecto en un namespace dedicado
+# Permite gestionar permisos, cuotas y políticas de red por separado
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: fastdelivery
+  labels:
+    app: fastdelivery
+    project: cloud-native-caso9

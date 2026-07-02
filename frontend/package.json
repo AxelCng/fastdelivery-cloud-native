@@ -1,0 +1,10 @@
+{
+  "name": "fastdelivery-frontend",
+  "version": "1.0.0",
+  "description": "Frontend de FastDelivery Perú — Panel de gestión de pedidos servido con Nginx",
+  "main": "index.html",
+  "scripts": {
+    "start": "echo 'Frontend servido por Nginx — ver Dockerfile'",
+    "build": "echo 'No build step needed — vanilla HTML/CSS/JS'"
+  }
+}
