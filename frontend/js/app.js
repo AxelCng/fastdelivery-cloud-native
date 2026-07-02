@@ -478,21 +478,40 @@ function showInventoryForm(item = null) {
   state.editingId = item ? item._id : null;
 
   const title = item ? 'Editar Inventario' : 'Nuevo Registro de Inventario';
+  
+  let productSelectHtml = '';
+  if (!item) {
+    const productOptions = state.products
+      .map((p) => `<option value="${p._id}" data-name="${p.name}">${p.name}</option>`)
+      .join('');
+      
+    productSelectHtml = `
+      <div class="form-group">
+        <label for="invProductSelect">Seleccionar Producto</label>
+        <select id="invProductSelect" onchange="onInventoryProductChange(this)">
+          <option value="" disabled selected>Seleccione producto...</option>
+          ${productOptions}
+        </select>
+      </div>
+    `;
+  }
+
   const html = `
+    ${productSelectHtml}
     <div class="form-row">
       <div class="form-group">
         <label for="invProductId">ID del Producto</label>
-        <input type="text" id="invProductId" placeholder="ID del producto" value="${item ? item.productId : ''}">
+        <input type="text" id="invProductId" placeholder="ID del producto" value="${item ? item.productId : ''}" readonly style="background-color: var(--bg-card); cursor: not-allowed;">
       </div>
       <div class="form-group">
         <label for="invProductName">Nombre del Producto</label>
-        <input type="text" id="invProductName" placeholder="Nombre del producto" value="${item ? item.productName : ''}">
+        <input type="text" id="invProductName" placeholder="Nombre del producto" value="${item ? item.productName : ''}" readonly style="background-color: var(--bg-card); cursor: not-allowed;">
       </div>
     </div>
     <div class="form-row">
       <div class="form-group">
         <label for="invQuantity">Cantidad</label>
-        <input type="number" id="invQuantity" min="0" placeholder="0" value="${item ? item.quantity : ''}">
+        <input type="number" id="invQuantity" min="0" placeholder="0" value="${item ? item.quantity : '0'}">
       </div>
       <div class="form-group">
         <label for="invMinStock">Stock Mínimo</label>
@@ -506,6 +525,18 @@ function showInventoryForm(item = null) {
   `;
   openModal(title, html);
 }
+
+// Handler de cambio de producto en Inventario
+window.onInventoryProductChange = function(selectEl) {
+  const selectedOption = selectEl.options[selectEl.selectedIndex];
+  if (selectedOption && selectedOption.value) {
+    document.getElementById('invProductId').value = selectEl.value;
+    document.getElementById('invProductName').value = selectedOption.dataset.name;
+  } else {
+    document.getElementById('invProductId').value = '';
+    document.getElementById('invProductName').value = '';
+  }
+};
 
 function editInventory(id) {
   const item = state.inventory.find((i) => i._id === id);
@@ -522,7 +553,7 @@ async function saveInventory() {
   };
 
   if (!data.productId || !data.productName) {
-    showToast('Por favor completa los campos obligatorios', 'warning');
+    showToast('Por favor selecciona un producto y completa los campos obligatorios', 'warning');
     return;
   }
 
@@ -602,20 +633,44 @@ function showOrderForm(order = null) {
 }
 
 function createOrderItemHtml(index, item = null) {
+  const options = state.products
+    .map(
+      (p) =>
+        `<option value="${p._id}" data-name="${p.name}" data-price="${p.price}" ${
+          item && item.productId === p._id ? 'selected' : ''
+        }>${p.name} (S/ ${p.price.toFixed(2)})</option>`
+    )
+    .join('');
+
   return `
     <div class="order-item-row form-row" style="margin-bottom: 0.5rem; align-items: end;">
-      <div class="form-group" style="margin-bottom:0">
-        <input type="text" class="item-name" placeholder="Producto" value="${item ? item.productName : ''}">
+      <div class="form-group" style="margin-bottom:0; flex: 2;">
+        <select class="item-product-select" onchange="onOrderProductChange(this)" style="width: 100%;" required>
+          <option value="" disabled ${!item ? 'selected' : ''}>Seleccione producto...</option>
+          ${options}
+        </select>
       </div>
-      <div class="form-group" style="margin-bottom:0">
-        <input type="number" class="item-qty" placeholder="Cant." min="1" value="${item ? item.quantity : '1'}" style="width:70px">
+      <div class="form-group" style="margin-bottom:0; flex: 0.8;">
+        <input type="number" class="item-qty" placeholder="Cant." min="1" value="${item ? item.quantity : '1'}" style="width:100%">
       </div>
-      <div class="form-group" style="margin-bottom:0">
-        <input type="number" class="item-price" placeholder="Precio" step="0.01" min="0" value="${item ? item.unitPrice : ''}">
+      <div class="form-group" style="margin-bottom:0; flex: 1.2;">
+        <input type="number" class="item-price" placeholder="Precio" step="0.01" min="0" value="${item ? item.unitPrice : ''}" readonly style="width:100%; background-color: var(--bg-card); cursor: not-allowed;">
       </div>
     </div>
   `;
 }
+
+// Handler de cambio de producto en Pedidos
+window.onOrderProductChange = function(selectEl) {
+  const row = selectEl.closest('.order-item-row');
+  const selectedOption = selectEl.options[selectEl.selectedIndex];
+  if (selectedOption && selectedOption.value) {
+    const price = selectedOption.dataset.price;
+    row.querySelector('.item-price').value = parseFloat(price).toFixed(2);
+  } else {
+    row.querySelector('.item-price').value = '';
+  }
+};
 
 function addOrderItem() {
   const container = document.getElementById('orderItemsContainer');
@@ -632,12 +687,14 @@ async function saveOrder() {
   const items = [];
   const rows = document.querySelectorAll('.order-item-row');
   rows.forEach((row) => {
-    const name = row.querySelector('.item-name').value.trim();
-    const qty = parseInt(row.querySelector('.item-qty').value) || 1;
-    const price = parseFloat(row.querySelector('.item-price').value) || 0;
-    if (name) {
+    const selectEl = row.querySelector('.item-product-select');
+    if (selectEl && selectEl.value) {
+      const selectedOption = selectEl.options[selectEl.selectedIndex];
+      const name = selectedOption.dataset.name;
+      const qty = parseInt(row.querySelector('.item-qty').value) || 1;
+      const price = parseFloat(row.querySelector('.item-price').value) || 0;
       items.push({
-        productId: name.toLowerCase().replace(/\s+/g, '-'),
+        productId: selectEl.value,
         productName: name,
         quantity: qty,
         unitPrice: price,

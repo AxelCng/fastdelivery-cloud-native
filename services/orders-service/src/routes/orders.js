@@ -46,21 +46,97 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// POST /api/orders — Crear nuevo pedido
+// POST /api/orders — Crear nuevo pedido con validación y reducción de stock
 router.post('/', async (req, res) => {
   try {
     const { customerName, customerAddress, customerPhone, items } = req.body;
+
+    if (!items || items.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'El pedido debe tener al menos un ítem',
+      });
+    }
+
+    const INVENTORY_SERVICE_URL = process.env.INVENTORY_SERVICE_URL || 'http://inventory-service:3002';
+
+    // 1. Verificar stock para cada ítem
+    for (const item of items) {
+      try {
+        const checkRes = await fetch(`${INVENTORY_SERVICE_URL}/api/inventory/${item.productId}`);
+        if (!checkRes.ok) {
+          const errText = await checkRes.text();
+          return res.status(checkRes.status).json({
+            success: false,
+            message: `No se pudo verificar el inventario para el producto: ${item.productName}`,
+            error: errText,
+          });
+        }
+        
+        const checkData = await checkRes.json();
+        if (!checkData.success || !checkData.data) {
+          return res.status(400).json({
+            success: false,
+            message: `El producto "${item.productName}" no está registrado en el inventario`,
+          });
+        }
+
+        const stockQty = checkData.data.quantity;
+        if (stockQty < item.quantity) {
+          return res.status(400).json({
+            success: false,
+            message: `Stock insuficiente para "${item.productName}". Disponible: ${stockQty}, Solicitado: ${item.quantity}`,
+          });
+        }
+      } catch (err) {
+        console.error(`[ORDERS-SERVICE] ❌ Error conectando a Inventory Service:`, err.message);
+        return res.status(502).json({
+          success: false,
+          message: `Error de comunicación al verificar stock para "${item.productName}" en el servicio de inventario`,
+          error: err.message,
+        });
+      }
+    }
+
+    // 2. Reducir stock de cada ítem
+    for (const item of items) {
+      try {
+        const reduceRes = await fetch(`${INVENTORY_SERVICE_URL}/api/inventory/product/${item.productId}/reduce`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ quantity: item.quantity }),
+        });
+        
+        if (!reduceRes.ok) {
+          const errData = await reduceRes.json();
+          return res.status(400).json({
+            success: false,
+            message: `Error al reducir stock de "${item.productName}": ${errData.message || 'Error desconocido'}`,
+          });
+        }
+      } catch (err) {
+        console.error(`[ORDERS-SERVICE] ❌ Error al reducir stock:`, err.message);
+        return res.status(502).json({
+          success: false,
+          message: `Error de comunicación al actualizar stock de "${item.productName}"`,
+          error: err.message,
+        });
+      }
+    }
+
+    // 3. Crear y guardar el pedido
     const order = new Order({
       customerName,
       customerAddress,
       customerPhone,
       items,
     });
+    
     const savedOrder = await order.save();
     res.status(201).json({
       success: true,
       data: savedOrder,
-      message: 'Pedido creado exitosamente',
+      message: 'Pedido creado exitosamente y stock decrementado en el inventario',
     });
   } catch (error) {
     res.status(400).json({
