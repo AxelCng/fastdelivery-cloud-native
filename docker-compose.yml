@@ -25,6 +25,9 @@ services:
       - products-db
     environment:
       - DB_HOST=products-db
+      - DB_PORT=27017
+      - DB_NAME=products_db
+      - PORT=3001
 
   products-db:
     image: mongo:7
@@ -39,6 +42,9 @@ services:
       - inventory-db
     environment:
       - DB_HOST=inventory-db
+      - DB_PORT=27017
+      - DB_NAME=inventory_db
+      - PORT=3002
 
   inventory-db:
     image: mongo:7
@@ -53,6 +59,9 @@ services:
       - orders-db
     environment:
       - DB_HOST=orders-db
+      - DB_PORT=27017
+      - DB_NAME=orders_db
+      - PORT=3003
 
   orders-db:
     image: mongo:7
